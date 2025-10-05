@@ -10,10 +10,16 @@ interface ApiService {
         @Query("api_key") apiKey: String
     ): MovieResponse
 
-    // THIS IS THE NEW FUNCTION
     @GET("movie/{movie_id}")
     suspend fun getMovieDetails(
         @Path("movie_id") movieId: Int,
         @Query("api_key") apiKey: String
     ): MovieDetail
+
+    // YEH NAYA FUNCTION HAI
+    @GET("search/movie")
+    suspend fun searchMovies(
+        @Query("api_key") apiKey: String,
+        @Query("query") searchQuery: String
+    ): MovieResponse
 }

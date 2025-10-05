@@ -1,4 +1,5 @@
 @file:OptIn(kotlinx.serialization.InternalSerializationApi::class)
+
 package com.example.movieverse
 
 import kotlinx.serialization.SerialName
@@ -9,10 +10,9 @@ data class Movie(
     val id: Int,
     val title: String,
 
-    @Serializable
     @SerialName("poster_path")
-    val posterPath: String,
+    val posterPath: String?,
 
     @SerialName("vote_average")
-    val voteAverage: Double
+    val voteAverage: Double = 0.0 // Added default value
 )

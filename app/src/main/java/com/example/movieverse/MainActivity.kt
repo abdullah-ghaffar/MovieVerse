@@ -30,6 +30,8 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val navController = rememberNavController()
                     val movies by viewModel.movies.collectAsState()
+                    // Get the search query state from the ViewModel
+                    val searchQuery by viewModel.searchQuery.collectAsState()
 
                     NavHost(
                         navController = navController,
@@ -38,6 +40,8 @@ class MainActivity : ComponentActivity() {
                         composable(route = Screen.MovieList.route) {
                             MovieListScreen(
                                 movies = movies,
+                                searchQuery = searchQuery,
+                                onSearchQueryChange = viewModel::onSearchQueryChange, // Pass the function
                                 onMovieClick = { movie ->
                                     navController.navigate(Screen.MovieDetail.createRoute(movie.id))
                                 }
@@ -49,7 +53,6 @@ class MainActivity : ComponentActivity() {
                             arguments = listOf(navArgument("movieId") { type = NavType.IntType })
                         ) { backStackEntry ->
                             val movieId = backStackEntry.arguments?.getInt("movieId")
-                            // We now pass the viewModel to the screen
                             MovieDetailsScreen(movieId = movieId, viewModel = viewModel)
                         }
                     }
