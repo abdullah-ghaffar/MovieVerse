@@ -2,8 +2,9 @@
 
 package com.example.movieverse
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -11,10 +12,12 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// An enum to keep track of the current list mode
 private enum class ListMode { POPULAR, SEARCH }
 
-class MovieViewModel : ViewModel() {
+class MovieViewModel(application: Application) : AndroidViewModel(application) {
+
+    // Get the DAO from the Application class we created
+    private val movieDao = (application as MovieApplication).database.movieDao()
 
     private val _movies = MutableStateFlow<List<Movie>>(emptyList())
     val movies: StateFlow<List<Movie>> = _movies
@@ -31,9 +34,41 @@ class MovieViewModel : ViewModel() {
     private var currentPage = 1
     private var currentMode = ListMode.POPULAR
 
+    // NEW: A flow that automatically holds the list of all favorite movies from the database
+    val favoriteMovies: StateFlow<List<FavoriteMovie>> = movieDao.getAllFavorites()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
-        loadMoreMovies() // Load the first page of popular movies
+        loadMoreMovies()
         observeSearchQuery()
+    }
+
+    // NEW: Function to add a movie to favorites
+    fun addFavorite(movie: MovieDetail) {
+        viewModelScope.launch {
+            val favoriteMovie = FavoriteMovie(
+                id = movie.id,
+                title = movie.title,
+                posterPath = movie.posterPath
+            )
+            withContext(Dispatchers.IO) {
+                movieDao.addFavorite(favoriteMovie)
+            }
+        }
+    }
+
+    // NEW: Function to remove a movie from favorites
+    fun removeFavorite(movie: MovieDetail) {
+        viewModelScope.launch {
+            val favoriteMovie = FavoriteMovie(
+                id = movie.id,
+                title = movie.title,
+                posterPath = movie.posterPath
+            )
+            withContext(Dispatchers.IO) {
+                movieDao.removeFavorite(favoriteMovie)
+            }
+        }
     }
 
     fun onSearchQueryChange(newQuery: String) {
@@ -46,14 +81,9 @@ class MovieViewModel : ViewModel() {
                 .debounce(500)
                 .distinctUntilChanged()
                 .onEach { query ->
-                    // When a new search begins, reset everything
                     _movies.value = emptyList()
                     currentPage = 1
-                    if (query.isEmpty()) {
-                        currentMode = ListMode.POPULAR
-                    } else {
-                        currentMode = ListMode.SEARCH
-                    }
+                    currentMode = if (query.isEmpty()) ListMode.POPULAR else ListMode.SEARCH
                     loadMoreMovies()
                 }
                 .launchIn(viewModelScope)
@@ -67,7 +97,6 @@ class MovieViewModel : ViewModel() {
             _isLoading.value = true
             try {
                 val response = withContext(Dispatchers.IO) {
-                    // This 'when' statement checks the mode
                     when (currentMode) {
                         ListMode.POPULAR -> RetrofitInstance.api.getPopularMovies(
                             apiKey = "47916c968671c68c3917f87b5fa5256b",

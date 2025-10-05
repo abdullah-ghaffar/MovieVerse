@@ -3,15 +3,17 @@ package com.example.movieverse
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,6 +30,12 @@ fun MovieDetailsScreen(movieId: Int?, viewModel: MovieViewModel) {
 
     val movieDetail by viewModel.selectedMovie.collectAsState()
 
+    // Get the live list of all favorite movies from the database
+    val favoriteMovies by viewModel.favoriteMovies.collectAsState()
+
+    // Condition to check if the current movie is in the favorites list
+    val isFavorite = favoriteMovies.any { it.id == movieId }
+
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -35,13 +43,28 @@ fun MovieDetailsScreen(movieId: Int?, viewModel: MovieViewModel) {
         if (movieDetail == null) {
             CircularProgressIndicator()
         } else {
-            MovieDetailContent(movie = movieDetail!!)
+            // Pass the favorite status and the click action to the content
+            MovieDetailContent(
+                movie = movieDetail!!,
+                isFavorite = isFavorite,
+                onToggleFavorite = {
+                    if (isFavorite) {
+                        viewModel.removeFavorite(movieDetail!!)
+                    } else {
+                        viewModel.addFavorite(movieDetail!!)
+                    }
+                }
+            )
         }
     }
 }
 
 @Composable
-fun MovieDetailContent(movie: MovieDetail) {
+fun MovieDetailContent(
+    movie: MovieDetail,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -57,11 +80,30 @@ fun MovieDetailContent(movie: MovieDetail) {
             contentScale = ContentScale.Crop
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = movie.title,
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold
-        )
+
+        // NEW: Row to hold the title and the favorite button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = movie.title,
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f) // Give text all available space
+            )
+            // NEW: The Favorite Icon Button
+            IconButton(onClick = onToggleFavorite) {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.Star,
+                    contentDescription = "Favorite Button",
+                    tint = if (isFavorite) Color.Yellow else Color.Gray,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "Release Date: ${movie.releaseDate}",
@@ -73,15 +115,8 @@ fun MovieDetailContent(movie: MovieDetail) {
             style = MaterialTheme.typography.bodyMedium
         )
         Spacer(modifier = Modifier.height(16.dp))
-
-        // YEH HISSA TABDEEL (CHANGED) HUA HAI
         Text(
-            // Check karta hai ke overview null YA empty to nahi
-            text = if (movie.overview.isNullOrEmpty()) {
-                "No summary available."
-            } else {
-                movie.overview
-            },
+            text = if (movie.overview.isNullOrEmpty()) "No summary available." else movie.overview,
             style = MaterialTheme.typography.bodyLarge
         )
     }
