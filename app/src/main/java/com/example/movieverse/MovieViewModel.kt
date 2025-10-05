@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+// An enum to keep track of the current list mode
+private enum class ListMode { POPULAR, SEARCH }
+
 class MovieViewModel : ViewModel() {
 
     private val _movies = MutableStateFlow<List<Movie>>(emptyList())
@@ -19,11 +22,17 @@ class MovieViewModel : ViewModel() {
     private val _selectedMovie = MutableStateFlow<MovieDetail?>(null)
     val selectedMovie: StateFlow<MovieDetail?> = _selectedMovie
 
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
 
+    private var currentPage = 1
+    private var currentMode = ListMode.POPULAR
+
     init {
-        getPopularMovies()
+        loadMoreMovies() // Load the first page of popular movies
         observeSearchQuery()
     }
 
@@ -37,46 +46,46 @@ class MovieViewModel : ViewModel() {
                 .debounce(500)
                 .distinctUntilChanged()
                 .onEach { query ->
+                    // When a new search begins, reset everything
+                    _movies.value = emptyList()
+                    currentPage = 1
                     if (query.isEmpty()) {
-                        getPopularMovies()
+                        currentMode = ListMode.POPULAR
                     } else {
-                        searchMovies(query)
+                        currentMode = ListMode.SEARCH
                     }
+                    loadMoreMovies()
                 }
                 .launchIn(viewModelScope)
         }
     }
 
-    private fun searchMovies(query: String) {
-        Log.d("MovieViewModel", "Searching for query: $query")
-        viewModelScope.launch {
-            try {
-                // THIS IS THE CHANGED PART
-                val response = withContext(Dispatchers.IO) {
-                    RetrofitInstance.api.searchMovies(
-                        apiKey = "47916c968671c68c3917f87b5fa5256b",
-                        searchQuery = query
-                    )
-                }
-                Log.d("MovieViewModel", "API Success: Found ${response.movies.size} movies for query '$query'")
-                _movies.value = response.movies.filter { it.posterPath != null }
-            } catch (e: Exception) {
-                Log.e("MovieViewModel", "Search API call failed: ${e.message}")
-            }
-        }
-    }
+    fun loadMoreMovies() {
+        if (_isLoading.value) return
 
-    private fun getPopularMovies() {
         viewModelScope.launch {
+            _isLoading.value = true
             try {
-                // THIS IS THE CHANGED PART
                 val response = withContext(Dispatchers.IO) {
-                    RetrofitInstance.api.getPopularMovies(apiKey = "47916c968671c68c3917f87b5fa5256b")
+                    // This 'when' statement checks the mode
+                    when (currentMode) {
+                        ListMode.POPULAR -> RetrofitInstance.api.getPopularMovies(
+                            apiKey = "47916c968671c68c3917f87b5fa5256b",
+                            page = currentPage
+                        )
+                        ListMode.SEARCH -> RetrofitInstance.api.searchMovies(
+                            apiKey = "47916c968671c68c3917f87b5fa5256b",
+                            searchQuery = _searchQuery.value,
+                            page = currentPage
+                        )
+                    }
                 }
-                Log.d("MovieViewModel", "API Success: Found ${response.movies.size} popular movies")
-                _movies.value = response.movies.filter { it.posterPath != null }
+                _movies.value = _movies.value + response.movies.filter { it.posterPath != null }
+                currentPage++
             } catch (e: Exception) {
-                Log.e("MovieViewModel", "API call for list failed: ${e.message}")
+                Log.e("MovieViewModel", "API call failed: ${e.message}")
+            } finally {
+                _isLoading.value = false
             }
         }
     }
@@ -85,7 +94,6 @@ class MovieViewModel : ViewModel() {
         _selectedMovie.value = null
         viewModelScope.launch {
             try {
-                // THIS IS THE CHANGED PART
                 val details = withContext(Dispatchers.IO) {
                     RetrofitInstance.api.getMovieDetails(
                         movieId = movieId,

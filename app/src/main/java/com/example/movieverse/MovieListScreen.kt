@@ -4,25 +4,43 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 
-// The function now accepts the search query and the handler
 @Composable
 fun MovieListScreen(
     movies: List<Movie>,
+    isLoading: Boolean,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    onMovieClick: (Movie) -> Unit
+    onMovieClick: (Movie) -> Unit,
+    onLoadMore: () -> Unit
 ) {
+    val lazyListState = rememberLazyListState()
+
+    val isAtBottom by remember {
+        derivedStateOf {
+            val lastVisibleItem = lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()
+            lastVisibleItem?.index == lazyListState.layoutInfo.totalItemsCount - 1
+        }
+    }
+
+    LaunchedEffect(isAtBottom) {
+        if (isAtBottom && !isLoading) {
+            onLoadMore()
+        }
+    }
+
     Column {
-        // This is the Search Bar
+        // YEH SEARCH BAR HAI
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
@@ -32,9 +50,22 @@ fun MovieListScreen(
                 .padding(8.dp)
         )
 
-        LazyColumn {
+        LazyColumn(state = lazyListState) {
             items(movies) { movie ->
                 MovieItem(movie = movie, onMovieClick = onMovieClick)
+            }
+
+            if (isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
             }
         }
     }
