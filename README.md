@@ -1,4 +1,4 @@
-# Movie-Verse 🎬
+# MovieVerse 🎬
 
 A modern, feature-rich movie discovery app for Android, built entirely with Kotlin and Jetpack Compose. This project showcases modern Android development practices, including a reactive UI, robust architecture, and offline support.
 
