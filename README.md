@@ -45,7 +45,7 @@ To run the app, you need your own free API key from the TMDb website.
 
 ## 🚀 Setup & Installation
 
-1.  Clone the repository: `git clone https://github.com/your-username/MovieVerse.git`
+1.  Clone the repository: `git clone https://github.com/abdullah-ghaffar/MovieVerse.git`
 2.  Open the project in the latest version of Android Studio.
 3.  Add your TMDb API key as described above.
 4.  Build and run the app.
