@@ -7,8 +7,13 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -16,7 +21,6 @@ private enum class ListMode { POPULAR, SEARCH }
 
 class MovieViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Get the DAO from the Application class we created
     private val movieDao = (application as MovieApplication).database.movieDao()
 
     private val _movies = MutableStateFlow<List<Movie>>(emptyList())
@@ -34,41 +38,12 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
     private var currentPage = 1
     private var currentMode = ListMode.POPULAR
 
-    // NEW: A flow that automatically holds the list of all favorite movies from the database
     val favoriteMovies: StateFlow<List<FavoriteMovie>> = movieDao.getAllFavorites()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        loadMoreMovies()
+        fetchMovies(isNewSearch = true)
         observeSearchQuery()
-    }
-
-    // NEW: Function to add a movie to favorites
-    fun addFavorite(movie: MovieDetail) {
-        viewModelScope.launch {
-            val favoriteMovie = FavoriteMovie(
-                id = movie.id,
-                title = movie.title,
-                posterPath = movie.posterPath
-            )
-            withContext(Dispatchers.IO) {
-                movieDao.addFavorite(favoriteMovie)
-            }
-        }
-    }
-
-    // NEW: Function to remove a movie from favorites
-    fun removeFavorite(movie: MovieDetail) {
-        viewModelScope.launch {
-            val favoriteMovie = FavoriteMovie(
-                id = movie.id,
-                title = movie.title,
-                posterPath = movie.posterPath
-            )
-            withContext(Dispatchers.IO) {
-                movieDao.removeFavorite(favoriteMovie)
-            }
-        }
     }
 
     fun onSearchQueryChange(newQuery: String) {
@@ -78,20 +53,27 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeSearchQuery() {
         viewModelScope.launch {
             _searchQuery
+                .drop(1) // Ignore the initial empty state at startup
                 .debounce(500)
                 .distinctUntilChanged()
-                .onEach { query ->
-                    _movies.value = emptyList()
-                    currentPage = 1
+                .collect { query ->
                     currentMode = if (query.isEmpty()) ListMode.POPULAR else ListMode.SEARCH
-                    loadMoreMovies()
+                    fetchMovies(isNewSearch = true) // Start a new search
                 }
-                .launchIn(viewModelScope)
         }
     }
 
     fun loadMoreMovies() {
-        if (_isLoading.value) return
+        if (!_isLoading.value) { // Only load more if not already loading
+            fetchMovies(isNewSearch = false)
+        }
+    }
+
+    private fun fetchMovies(isNewSearch: Boolean) {
+        if (isNewSearch) {
+            currentPage = 1
+            _movies.value = emptyList()
+        }
 
         viewModelScope.launch {
             _isLoading.value = true
@@ -109,7 +91,8 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                 }
-                _movies.value = _movies.value + response.movies.filter { it.posterPath != null }
+                val filteredMovies = response.movies.filter { it.posterPath != null }
+                _movies.value = if (isNewSearch) filteredMovies else _movies.value + filteredMovies
                 currentPage++
             } catch (e: Exception) {
                 Log.e("MovieViewModel", "API call failed: ${e.message}")
@@ -133,6 +116,20 @@ class MovieViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e("MovieViewModel", "API call for details failed: ${e.message}")
             }
+        }
+    }
+
+    fun addFavorite(movie: MovieDetail) {
+        viewModelScope.launch {
+            val favoriteMovie = FavoriteMovie(id = movie.id, title = movie.title, posterPath = movie.posterPath)
+            withContext(Dispatchers.IO) { movieDao.addFavorite(favoriteMovie) }
+        }
+    }
+
+    fun removeFavorite(movie: MovieDetail) {
+        viewModelScope.launch {
+            val favoriteMovie = FavoriteMovie(id = movie.id, title = movie.title, posterPath = movie.posterPath)
+            withContext(Dispatchers.IO) { movieDao.removeFavorite(favoriteMovie) }
         }
     }
 }

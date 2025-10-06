@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
                     val movies by viewModel.movies.collectAsState()
                     val isLoading by viewModel.isLoading.collectAsState()
                     val searchQuery by viewModel.searchQuery.collectAsState()
+                    val favoriteMovies by viewModel.favoriteMovies.collectAsState()
 
                     NavHost(
                         navController = navController,
@@ -46,7 +47,10 @@ class MainActivity : ComponentActivity() {
                                 onMovieClick = { movie ->
                                     navController.navigate(Screen.MovieDetail.createRoute(movie.id))
                                 },
-                                onLoadMore = viewModel::loadMoreMovies
+                                onLoadMore = viewModel::loadMoreMovies,
+                                onFavoritesClick = {
+                                    navController.navigate(Screen.Favorites.route)
+                                }
                             )
                         }
 
@@ -56,6 +60,15 @@ class MainActivity : ComponentActivity() {
                         ) { backStackEntry ->
                             val movieId = backStackEntry.arguments?.getInt("movieId")
                             MovieDetailsScreen(movieId = movieId, viewModel = viewModel)
+                        }
+
+                        composable(route = Screen.Favorites.route) {
+                            FavoritesScreen(
+                                favoriteMovies = favoriteMovies,
+                                onMovieClick = { movieId ->
+                                    navController.navigate(Screen.MovieDetail.createRoute(movieId))
+                                }
+                            )
                         }
                     }
                 }
